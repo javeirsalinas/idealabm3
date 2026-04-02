@@ -14,6 +14,7 @@ st.set_page_config(
     layout="wide",
 )
 
+# Estilo CSS para emular el Look & Feel de Misión 3
 st.markdown("""
     <style>
     .stApp { background-color: #050505; color: #e0e0e0; font-family: 'Inter', sans-serif; }
@@ -82,7 +83,7 @@ def classify_query(text: str):
     return {"cat": "Otros", "conf": 0.50}
 
 # ==========================================
-# 3. LISTAS DE REFERENCIA UCV ACTUALIZADAS
+# 3. LISTAS DE REFERENCIA UCV
 # ==========================================
 SEDES_UCV = [
     "Lima Norte", "Ate", "San Juan de Lurigancho", "Callao", 
@@ -91,28 +92,13 @@ SEDES_UCV = [
 ]
 
 CARRERAS_UCV = [
-    "Administración", 
-    "Administración en Turismo y Hotelería",
-    "Contabilidad",
-    "Economía",
-    "Marketing y Dirección de Empresas",
-    "Negocios Internacionales",
-    "Derecho",
-    "Psicología",
-    "Ciencias de la Comunicación",
-    "Educación Inicial",
-    "Educación Primaria",
-    "Medicina Humana",
-    "Enfermería",
-    "Nutrición y Dietética",
-    "Obstetricia",
-    "Ingeniería de Sistemas",
-    "Ingeniería Industrial",
-    "Ingeniería Civil",
-    "Arquitectura",
-    "Ciencias del Deporte",
-    "Traducción e Interpretación",
-    "Arte y Diseño Gráfico Empresarial"
+    "Administración", "Administración en Turismo y Hotelería", "Contabilidad",
+    "Economía", "Marketing y Dirección de Empresas", "Negocios Internacionales",
+    "Derecho", "Psicología", "Ciencias de la Comunicación", "Educación Inicial",
+    "Educación Primaria", "Medicina Humana", "Enfermería", "Nutrición y Dietética",
+    "Obstetricia", "Ingeniería de Sistemas", "Ingeniería Industrial",
+    "Ingeniería Civil", "Arquitectura", "Ciencias del Deporte",
+    "Traducción e Interpretación", "Arte y Diseño Gráfico Empresarial"
 ]
 
 # ==========================================
@@ -128,11 +114,11 @@ if menu == "🏠 Inicio":
         <h2 style="color:#4facfe;">Impulsando el Talento Vallejiano 🚀</h2>
         <p style="font-size:1.1rem; color:#ccc;">
             Bienvenido a la plataforma de mentoría de la <b>Universidad César Vallejo</b>. 
-            Conecta tus proyectos con expertos y lleva tu carrera al siguiente nivel siguiendo el ADN de <b>Misión 3</b>.
+            Conecta tus proyectos con expertos y lleva tu carrera al siguiente nivel.
         </p>
     </div>
     """, unsafe_allow_html=True)
-    st.image("https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=2070&auto=format&fit=crop")
+    st.image("https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=2070&auto=format&fit=crop")
 
 # --- 🎓 ESTUDIANTES ---
 elif menu == "🎓 Estudiantes":
@@ -179,6 +165,8 @@ elif menu == "🎓 Estudiantes":
         check_email = st.text_input("Correo para buscar historial")
         if check_email:
             my_queries = db.collection("queries").where("student_email", "==", check_email).get()
+            if not my_queries:
+                st.info("No hay consultas registradas con este correo.")
             for q_doc in my_queries:
                 q_data = q_doc.to_dict()
                 with st.container():
@@ -191,14 +179,16 @@ elif menu == "🎓 Estudiantes":
                     if q_data['status'] == 'responded':
                         st.info(f"💡 Mentoría: {q_data['mentor_reply']}")
                     else:
-                        st.warning("⏳ Pendiente de revisión por un mentor.")
+                        st.warning("⏳ Pendiente de revisión.")
 
 # --- 🤝 MENTORES ---
 elif menu == "🤝 Mentores":
     st.markdown('<h2 style="color:#4facfe;">Panel de Gestión</h2>', unsafe_allow_html=True)
-    docs = db.collection("queries").where("status", "==", "pending").order_by("createdAt").get()
+    # CORRECCIÓN: Se eliminó .order_by() para evitar el error de Índice Compuesto
+    docs = db.collection("queries").where("status", "==", "pending").get()
+    
     if not docs:
-        st.info("No hay consultas nuevas. ✨")
+        st.info("No hay consultas nuevas por responder. ✨")
     else:
         for doc in docs:
             q = doc.to_dict()
@@ -215,7 +205,9 @@ elif menu == "🤝 Mentores":
                     if st.button("Enviar Respuesta", key=f"b_{doc.id}"):
                         if reply:
                             db.collection("queries").document(doc.id).update({
-                                "status": "responded", "mentor_reply": reply, "repliedAt": datetime.now()
+                                "status": "responded", 
+                                "mentor_reply": reply, 
+                                "repliedAt": datetime.now()
                             })
                             st.rerun()
 
@@ -236,9 +228,8 @@ elif menu == "📊 Administrador":
             fig = px.pie(df, names="category", title="Interés por Área", hole=0.5, template="plotly_dark")
             st.plotly_chart(fig, use_container_width=True)
         with c_b:
-            # Gráfico por estado
             fig2 = px.histogram(df, x="category", color="status", barmode="group", template="plotly_dark")
             st.plotly_chart(fig2, use_container_width=True)
 
 st.sidebar.markdown("---")
-st.sidebar.caption("IdeaLab M3 v3.0 | UCV 2026")
+st.sidebar.caption("IdeaLab M3 v3.1 | @UCV 2026")
