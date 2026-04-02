@@ -98,7 +98,7 @@ def classify_query(text: str):
 # ==========================================
 st.markdown(f'<h1 class="main-title">{menu}</h1>', unsafe_allow_html=True)
 
-if menu == "Inicio":
+if menu == "IdeaLabM3":
     st.markdown('<div class="card"><h2>Impulsando el Talento Vallejiano 🚀</h2><p>Plataforma de Innovación IdeaLab M3.</p></div>', unsafe_allow_html=True)
     st.image("https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=2070&auto=format&fit=crop")
 
