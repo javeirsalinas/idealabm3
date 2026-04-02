@@ -9,11 +9,7 @@ from streamlit_option_menu import option_menu
 # ==========================================
 # 1. CONFIGURACIÓN DE PÁGINA Y ESTILO
 # ==========================================
-st.set_page_config(
-    page_title="IdeaLab M3 | Universidad César Vallejo",
-    page_icon="💡",
-    layout="wide",
-)
+st.set_page_config(page_title="IdeaLab M3 | UCV", page_icon="💡", layout="wide")
 
 st.markdown("""
     <style>
@@ -112,12 +108,10 @@ CARRERAS_UCV = ["Administración", "Administración en Turismo y Hotelería", "C
 # ==========================================
 st.markdown(f'<h1 class="main-title">{menu}</h1>', unsafe_allow_html=True)
 
-# --- SECCIÓN: IdealabM3 ---
 if menu == "IdealabM3":
     st.markdown('<div class="card"><h2>Impulsando el Talento Vallejiano 🚀</h2><p>Ecosistema de Innovación UCV.</p></div>', unsafe_allow_html=True)
     st.image("https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=2070&auto=format&fit=crop")
 
-# --- SECCIÓN: ESTUDIANTES ---
 elif menu == "Estudiantes":
     t1, t2, t3 = st.tabs(["📝 Registro", "🚀 Nueva Consulta", "📩 Mis Respuestas"])
     with t1:
@@ -137,7 +131,18 @@ elif menu == "Estudiantes":
         tq = st.text_area("Describe tu proyecto o duda")
         if st.button("Enviar"):
             if ev and tq:
-                db.collection("queries").add({"student_email":ev, "text":tq, "category":"General", "status":"pending", "createdAt":datetime.now()})
+                # Buscar sede del alumno para guardarla en la consulta
+                student_ref = db.collection("students").document(ev).get()
+                campus_name = student_ref.to_dict().get('campus', 'No especificada') if student_ref.exists else 'No registrado'
+                
+                db.collection("queries").add({
+                    "student_email": ev, 
+                    "campus": campus_name, # <-- NUEVO CAMPO
+                    "text": tq, 
+                    "category": "General", 
+                    "status": "pending", 
+                    "createdAt": datetime.now()
+                })
                 st.toast("Enviado con éxito 🚀")
     with t3:
         ck = st.text_input("Ingresa tu correo para ver el historial")
@@ -148,29 +153,26 @@ elif menu == "Estudiantes":
                 st.markdown(f'<div class="card"><span class="badge">CONSULTA</span><p>{q["text"]}</p></div>', unsafe_allow_html=True)
                 if q.get("mentor_reply"): st.info(f"💡 Respuesta: {q['mentor_reply']}")
 
-# --- SECCIÓN: MENTORES Y ADMIN (PROTEGIDA) ---
 elif menu in ["Mentores", "Administrador"]:
     if not st.session_state['authenticated']:
-        st.warning("🔒 Acceso Restringido. Por favor, identifícate.")
+        st.warning("🔒 Acceso Restringido.")
         with st.form("login"):
             u_mail = st.text_input("Correo Autorizado")
             u_pass = st.text_input("Contraseña", type="password")
-            if st.form_submit_button("Entrar al Panel"):
-                if check_login(u_mail, u_pass):
-                    st.rerun()
-                else:
-                    st.error("Credenciales Inválidas.")
+            if st.form_submit_button("Entrar"):
+                if check_login(u_mail, u_pass): st.rerun()
+                else: st.error("Invalido.")
     else:
         if menu == "Mentores":
             docs = db.collection("queries").where("status", "==", "pending").get()
-            if not docs: st.info("No hay consultas nuevas.")
+            if not docs: st.info("Sin pendientes.")
             for doc in docs:
                 q = doc.to_dict()
                 with st.container():
-                    st.markdown(f'<div class="card"><h3>De: {q.get("student_email")}</h3><p>{q["text"]}</p></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="card"><h3>De: {q.get("student_email")} ({q.get("campus", "Sede N/A")})</h3><p>{q["text"]}</p></div>', unsafe_allow_html=True)
                     with st.expander("Responder"):
                         ans = st.text_area("Asesoría:", key=doc.id)
-                        if st.button("Enviar Mentoría", key=f"b_{doc.id}"):
+                        if st.button("Enviar", key=f"b_{doc.id}"):
                             db.collection("queries").document(doc.id).update({"status":"responded", "mentor_reply":ans, "repliedAt":datetime.now()})
                             st.rerun()
         
@@ -179,11 +181,20 @@ elif menu in ["Mentores", "Administrador"]:
             s_docs = db.collection("students").get()
             if q_docs:
                 df = pd.DataFrame([d.to_dict() for d in q_docs])
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Consultas", len(df))
-                col2.metric("Estudiantes", len(s_docs))
-                col3.metric("Casos Resueltos", len(df[df['status'] == 'responded']))
-                st.plotly_chart(px.pie(df, names="status", hole=0.5, template="plotly_dark", title="Estado de Mentorías"), use_container_width=True)
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Consultas", len(df))
+                c2.metric("Estudiantes", len(s_docs))
+                c3.metric("Resueltas", len(df[df['status'] == 'responded']))
+                
+                # FILA DE GRÁFICOS
+                g1, g2 = st.columns(2)
+                with g1:
+                    # GRÁFICO POR SEDE (NUEVO)
+                    fig_sede = px.bar(df, x="campus", title="Consultas por Sede UCV", template="plotly_dark", color="campus")
+                    st.plotly_chart(fig_sede, use_container_width=True)
+                with g2:
+                    fig_pie = px.pie(df, names="status", hole=0.5, template="plotly_dark", title="Estado de Mentorías")
+                    st.plotly_chart(fig_pie, use_container_width=True)
 
 st.sidebar.markdown("---")
-st.sidebar.caption("IdealabM3 v5.0 | @UCV 2026")
+st.sidebar.caption("IdealabM3 v5.5 | @UCV 2026")
