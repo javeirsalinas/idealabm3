@@ -85,8 +85,8 @@ with st.sidebar:
     st.image("https://www.ucv.edu.pe/wp-content/uploads/2020/01/logo-ucv.png", width=180)
     st.markdown("<br>", unsafe_allow_html=True)
     menu = option_menu(
-        menu_title="Misión 3 Menú", 
-        options=["IdealabM3", "Estudiantes", "Mentores", "Administrador"],
+        menu_title="IdealabM3", 
+        options=["Inicio", "Estudiantes", "Mentores", "Administrador"],
         icons=["rocket-takeoff", "mortarboard", "person-badge", "speedometer2"], 
         menu_icon="cast", default_index=0,
         styles={
@@ -100,7 +100,7 @@ with st.sidebar:
             st.session_state['authenticated'] = False
             st.rerun()
 
-SEDES_UCV = ["Lima Norte", "Ate", "San Juan de Lurigancho", "Callao", "Chimbote", "Huaraz", "Trujillo", "Chepén", "Chiclayo", "Piura", "Tarapoto", "Moyobamba"]
+CAMPUS_UCV = ["Lima Norte", "Ate", "San Juan de Lurigancho", "Callao", "Chimbote", "Huaraz", "Trujillo", "Chepén", "Chiclayo", "Piura", "Tarapoto", "Moyobamba"]
 CARRERAS_UCV = ["Administración", "Administración en Turismo y Hotelería", "Contabilidad", "Economía", "Marketing y Dirección de Empresas", "Negocios Internacionales", "Derecho", "Psicología", "Ciencias de la Comunicación", "Educación Inicial", "Educación Primaria", "Medicina Humana", "Enfermería", "Nutrición y Dietética", "Obstetricia", "Ingeniería de Sistemas", "Ingeniería Industrial", "Ingeniería Civil", "Arquitectura", "Ciencias del Deporte", "Traducción e Interpretación", "Arte y Diseño Gráfico Empresarial"]
 
 # ==========================================
@@ -108,7 +108,7 @@ CARRERAS_UCV = ["Administración", "Administración en Turismo y Hotelería", "C
 # ==========================================
 st.markdown(f'<h1 class="main-title">{menu}</h1>', unsafe_allow_html=True)
 
-if menu == "IdealabM3":
+if menu == "Inicio":
     st.markdown('<div class="card"><h2>Impulsando el Talento Vallejiano 🚀</h2><p>Ecosistema de Innovación UCV.</p></div>', unsafe_allow_html=True)
     st.image("https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=2070&auto=format&fit=crop")
 
@@ -121,29 +121,31 @@ elif menu == "Estudiantes":
                 n = st.text_input("Nombre Completo")
                 e = st.text_input("Correo Institucional")
             with c2:
-                s = st.selectbox("Sede", SEDES_UCV)
-                c = st.selectbox("Carrera", CARRERAS_UCV)
+                s = st.selectbox("Campus UCV", CAMPUS_UCV)
+                c = st.selectbox("Carrera Profesional", CARRERAS_UCV)
             if st.form_submit_button("Crear Perfil"):
                 db.collection("students").document(e).set({"name":n, "email":e, "campus":s, "career":c, "createdAt":datetime.now()})
                 st.success("¡Perfil Creado!")
     with t2:
-        ev = st.text_input("Valida tu Correo")
+        ev = st.text_input("Ingresa tu correo registrado")
         tq = st.text_area("Describe tu proyecto o duda")
         if st.button("Enviar"):
             if ev and tq:
-                # Buscar sede del alumno de forma segura
+                # Buscar Campus del alumno de forma segura
                 student_ref = db.collection("students").document(ev).get()
-                campus_name = student_ref.to_dict().get('campus', 'No especificada') if student_ref.exists else 'No registrado'
-                
-                db.collection("queries").add({
-                    "student_email": ev, 
-                    "campus": campus_name,
-                    "text": tq, 
-                    "category": "General", 
-                    "status": "pending", 
-                    "createdAt": datetime.now()
-                })
-                st.toast("Enviado con éxito 🚀")
+                if student_ref.exists:
+                    campus_val = student_ref.to_dict().get('campus', 'No especificado')
+                    db.collection("queries").add({
+                        "student_email": ev, 
+                        "campus": campus_val,
+                        "text": tq, 
+                        "category": "General", 
+                        "status": "pending", 
+                        "createdAt": datetime.now()
+                    })
+                    st.toast("Enviado con éxito 🚀")
+                else:
+                    st.error("⚠️ Tu correo no está registrado. Por favor, ve a la pestaña 'Registro' primero.")
     with t3:
         ck = st.text_input("Ingresa tu correo para ver el historial")
         if ck:
@@ -157,11 +159,11 @@ elif menu in ["Mentores", "Administrador"]:
     if not st.session_state['authenticated']:
         st.warning("🔒 Acceso Restringido.")
         with st.form("login"):
-            u_mail = st.text_input("Correo Autorizado")
+            u_mail = st.text_input("Correo Mentor")
             u_pass = st.text_input("Contraseña", type="password")
             if st.form_submit_button("Entrar"):
                 if check_login(u_mail, u_pass): st.rerun()
-                else: st.error("Inválido.")
+                else: st.error("Acceso Denegado.")
     else:
         if menu == "Mentores":
             docs = db.collection("queries").where("status", "==", "pending").get()
@@ -169,7 +171,7 @@ elif menu in ["Mentores", "Administrador"]:
             for doc in docs:
                 q = doc.to_dict()
                 with st.container():
-                    st.markdown(f'<div class="card"><h3>De: {q.get("student_email")} ({q.get("campus", "Sede N/A")})</h3><p>{q["text"]}</p></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="card"><h3>De: {q.get("student_email")}</h3><p><b>Campus:</b> {q.get("campus", "N/A")}</p><p>{q["text"]}</p></div>', unsafe_allow_html=True)
                     with st.expander("Responder"):
                         ans = st.text_area("Asesoría:", key=doc.id)
                         if st.button("Enviar", key=f"b_{doc.id}"):
@@ -179,30 +181,26 @@ elif menu in ["Mentores", "Administrador"]:
         elif menu == "Administrador":
             q_docs = db.collection("queries").get()
             s_docs = db.collection("students").get()
-            
             if q_docs:
                 df = pd.DataFrame([d.to_dict() for d in q_docs])
-                
-                # Métricas
                 c1, c2, c3 = st.columns(3)
                 c1.metric("Consultas", len(df))
                 c2.metric("Estudiantes", len(s_docs))
                 c3.metric("Resueltas", len(df[df['status'] == 'responded']) if 'status' in df.columns else 0)
                 
                 st.markdown("<br>", unsafe_allow_html=True)
-                
                 g1, g2 = st.columns(2)
                 with g1:
-                    # VERIFICACIÓN DE SEGURIDAD PARA EL GRÁFICO DE SEDES
                     if 'campus' in df.columns:
-                        fig_sede = px.bar(df, x="campus", title="Consultas por Sede UCV", template="plotly_dark", color="campus")
-                        st.plotly_chart(fig_sede, use_container_width=True)
-                    else:
-                        st.info("Aún no hay datos de Sedes para mostrar el gráfico.")
+                        # Gráfico unificado por Campus
+                        fig_campus = px.bar(df, x="campus", title="Consultas por Campus UCV", 
+                                          template="plotly_dark", color="campus",
+                                          labels={"campus": "Campus UCV", "count": "Nro. Consultas"})
+                        st.plotly_chart(fig_campus, use_container_width=True)
                 with g2:
                     if 'status' in df.columns:
                         fig_pie = px.pie(df, names="status", hole=0.5, template="plotly_dark", title="Estado de Mentorías")
                         st.plotly_chart(fig_pie, use_container_width=True)
 
 st.sidebar.markdown("---")
-st.sidebar.caption("IdealabM3 v5.6 | @UCV 2026")
+st.sidebar.caption("IdealabM3 v5.7 | @UCV 2026")
