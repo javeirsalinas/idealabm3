@@ -131,13 +131,13 @@ elif menu == "Estudiantes":
         tq = st.text_area("Describe tu proyecto o duda")
         if st.button("Enviar"):
             if ev and tq:
-                # Buscar sede del alumno para guardarla en la consulta
+                # Buscar sede del alumno de forma segura
                 student_ref = db.collection("students").document(ev).get()
                 campus_name = student_ref.to_dict().get('campus', 'No especificada') if student_ref.exists else 'No registrado'
                 
                 db.collection("queries").add({
                     "student_email": ev, 
-                    "campus": campus_name, # <-- NUEVO CAMPO
+                    "campus": campus_name,
                     "text": tq, 
                     "category": "General", 
                     "status": "pending", 
@@ -161,7 +161,7 @@ elif menu in ["Mentores", "Administrador"]:
             u_pass = st.text_input("Contraseña", type="password")
             if st.form_submit_button("Entrar"):
                 if check_login(u_mail, u_pass): st.rerun()
-                else: st.error("Invalido.")
+                else: st.error("Inválido.")
     else:
         if menu == "Mentores":
             docs = db.collection("queries").where("status", "==", "pending").get()
@@ -179,22 +179,30 @@ elif menu in ["Mentores", "Administrador"]:
         elif menu == "Administrador":
             q_docs = db.collection("queries").get()
             s_docs = db.collection("students").get()
+            
             if q_docs:
                 df = pd.DataFrame([d.to_dict() for d in q_docs])
+                
+                # Métricas
                 c1, c2, c3 = st.columns(3)
                 c1.metric("Consultas", len(df))
                 c2.metric("Estudiantes", len(s_docs))
-                c3.metric("Resueltas", len(df[df['status'] == 'responded']))
+                c3.metric("Resueltas", len(df[df['status'] == 'responded']) if 'status' in df.columns else 0)
                 
-                # FILA DE GRÁFICOS
+                st.markdown("<br>", unsafe_allow_html=True)
+                
                 g1, g2 = st.columns(2)
                 with g1:
-                    # GRÁFICO POR SEDE (NUEVO)
-                    fig_sede = px.bar(df, x="campus", title="Consultas por Sede UCV", template="plotly_dark", color="campus")
-                    st.plotly_chart(fig_sede, use_container_width=True)
+                    # VERIFICACIÓN DE SEGURIDAD PARA EL GRÁFICO DE SEDES
+                    if 'campus' in df.columns:
+                        fig_sede = px.bar(df, x="campus", title="Consultas por Sede UCV", template="plotly_dark", color="campus")
+                        st.plotly_chart(fig_sede, use_container_width=True)
+                    else:
+                        st.info("Aún no hay datos de Sedes para mostrar el gráfico.")
                 with g2:
-                    fig_pie = px.pie(df, names="status", hole=0.5, template="plotly_dark", title="Estado de Mentorías")
-                    st.plotly_chart(fig_pie, use_container_width=True)
+                    if 'status' in df.columns:
+                        fig_pie = px.pie(df, names="status", hole=0.5, template="plotly_dark", title="Estado de Mentorías")
+                        st.plotly_chart(fig_pie, use_container_width=True)
 
 st.sidebar.markdown("---")
-st.sidebar.caption("IdealabM3 v5.5 | @UCV 2026")
+st.sidebar.caption("IdealabM3 v5.6 | @UCV 2026")
