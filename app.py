@@ -11,7 +11,6 @@ from streamlit_option_menu import option_menu
 # ==========================================
 st.set_page_config(page_title="IdeaLab M3 | UCV", page_icon="💡", layout="wide")
 
-# Inyectamos CSS para mejorar la estética y los botones
 st.markdown("""
     <style>
     .stApp { background-color: #050505; color: #e0e0e0; font-family: 'Inter', sans-serif; }
@@ -33,19 +32,13 @@ st.markdown("""
     .stButton>button {
         background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
         border: none; color: #050505 !important; font-weight: 800;
-        border-radius: 14px; padding: 0.7rem 1.5rem; transition: 0.4s;
-    }
-    /* Estilo especial para botón de retorno */
-    .btn-return>button {
-        background: transparent !important;
-        border: 1px solid #4facfe !important;
-        color: #4facfe !important;
+        border-radius: 14px; padding: 0.7rem 1.5rem; transition: 0.4s; width: 100%;
     }
     </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. CONEXIÓN A FIREBASE (CON SEGURIDAD)
+# 2. CONEXIÓN A FIREBASE
 # ==========================================
 @st.cache_resource
 def get_db():
@@ -58,107 +51,127 @@ def get_db():
                 cred = credentials.Certificate("serviceAccountKey.json")
             firebase_admin.initialize_app(cred)
         except Exception as e:
-            st.error(f"Error Crítico de Conexión: {e}")
+            st.error(f"Error de Conexión: {e}")
             return None
     return firestore.client()
 
 db = get_db()
 
-# ==========================================
-# 3. LÓGICA DE NAVEGACIÓN Y SESIÓN
-# ==========================================
-if 'menu_option' not in st.session_state:
-    st.session_state['menu_option'] = "IdeaLabM3"
-
-if 'authenticated' not in st.session_state:
-    st.session_state['authenticated'] = False
-
-# Función para forzar el regreso al inicio
-def go_home():
-    st.session_state['menu_option'] = "IdeaLabM3"
-    st.rerun()
+# Listas de Selección UCV
+CAMPUS_UCV = ["Lima Norte", "Ate", "San Juan de Lurigancho", "Callao", "Chimbote", "Huaraz", "Trujillo", "Chepén", "Chiclayo", "Piura", "Tarapoto", "Moyobamba"]
+CARRERAS_UCV = ["Administración", "Contabilidad", "Derecho", "Psicología", "Ingeniería de Sistemas", "Ingeniería Industrial", "Arquitectura", "Medicina Humana", "Ciencias de la Comunicación", "Educación"]
 
 # ==========================================
-# 4. SIDEBAR Y MENÚ
+# 3. NAVEGACIÓN
 # ==========================================
 with st.sidebar:
     st.image("https://www.ucv.edu.pe/wp-content/uploads/2020/01/logo-ucv.png", width=180)
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # El menú ahora se sincroniza con el session_state
-    selected = option_menu(
-        menu_title="Navegación", 
+    menu = option_menu(
+        menu_title="Menú Principal", 
         options=["IdeaLabM3", "Estudiantes", "Mentores", "Administrador"],
         icons=["rocket-takeoff", "mortarboard", "person-badge", "speedometer2"], 
-        menu_icon="cast", 
-        default_index=0,
-        key="main_menu"
+        menu_icon="cast", default_index=0
     )
-    # Actualizamos la opción elegida
-    st.session_state['menu_option'] = selected
-
-    if st.session_state['authenticated']:
-        st.divider()
-        st.caption(f"Usuario: {st.session_state.get('mentor_name', 'Admin')}")
-        if st.button("Cerrar Sesión"):
-            st.session_state['authenticated'] = False
-            st.rerun()
 
 # ==========================================
-# 5. RENDERIZADO DE SECCIONES
+# 4. SECCIÓN: IDEALABM3 (INICIO)
 # ==========================================
-current_menu = st.session_state['menu_option']
-
-if current_menu == "IdeaLabM3":
+if menu == "IdeaLabM3":
     st.markdown('<h1 class="main-title">IdeaLabM3</h1>', unsafe_allow_html=True)
     st.markdown('<p class="subtitle">Donde las ideas convergen</p>', unsafe_allow_html=True)
-    
-    st.markdown("""
-        <div class="card" style="text-align: center;">
-            <h2 style="color:#00f2fe;">¡Bienvenido al Hub de Innovación de la UCV! 🚀</h2>
-            <p>Selecciona una opción en el menú lateral para comenzar tu viaje de emprendimiento.</p>
-        </div>
-    """, unsafe_allow_html=True)
     st.image("https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=2070&auto=format&fit=crop")
 
-elif current_menu == "Estudiantes":
-    st.markdown('<h1 class="main-title">Estudiantes</h1>', unsafe_allow_html=True)
+# ==========================================
+# 5. SECCIÓN: ESTUDIANTES (REGISTRO COMPLETO)
+# ==========================================
+elif menu == "Estudiantes":
+    st.markdown('<h1 class="main-title">Panel Estudiantil</h1>', unsafe_allow_html=True)
     
-    # BOTÓN DE RETORNO AL INICIO
-    if st.button("⬅️ Volver a IdeaLabM3", key="ret_est"):
-        go_home()
-
     t1, t2, t3 = st.tabs(["📝 Registro", "🚀 Nueva Consulta", "📩 Mis Respuestas"])
-    # ... (Resto del código de registro y consultas igual que antes)
+    
     with t1:
-        st.info("Regístrate para comenzar tus mentorías.")
-        # Lógica de formulario...
-        
-elif current_menu == "Mentores":
-    st.markdown('<h1 class="main-title">Panel de Mentores</h1>', unsafe_allow_html=True)
-    
-    # BOTÓN DE RETORNO AL INICIO
-    if st.button("⬅️ Volver a IdeaLabM3", key="ret_men"):
-        go_home()
+        st.markdown('<div class="card"><h3>Registro de Nuevo Estudiante</h3>', unsafe_allow_html=True)
+        with st.form("registro_estudiante", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                nombre = st.text_input("Nombre Completo")
+                correo = st.text_input("Correo Institucional (@ucvvirtual.edu.pe)")
+                password = st.text_input("Crea una Contraseña", type="password")
+            with col2:
+                campus = st.selectbox("Campus UCV", CAMPUS_UCV)
+                carrera = st.selectbox("Carrera Profesional", CARRERAS_UCV)
+            
+            submit = st.form_submit_button("Finalizar Registro 🚀")
+            
+            if submit:
+                if nombre and correo and password:
+                    try:
+                        # Guardar en la colección 'students'
+                        db.collection("students").document(correo).set({
+                            "name": nombre,
+                            "email": correo,
+                            "password": password, # Se guarda para futuras validaciones
+                            "campus": campus,
+                            "career": carrera,
+                            "createdAt": datetime.now()
+                        })
+                        st.success(f"¡Bienvenido {nombre}! Tu perfil en el campus {campus} ha sido creado.")
+                    except Exception as e:
+                        st.error(f"Error al registrar: {e}")
+                else:
+                    st.warning("Por favor, completa todos los campos obligatorios.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    if not st.session_state['authenticated']:
-        # Lógica de Login...
-        with st.form("login"):
-            u = st.text_input("Usuario")
-            p = st.text_input("Clave", type="password")
-            if st.form_submit_button("Entrar"):
-                # Aquí llamarías a tu función check_login de antes
-                pass
-    else:
-        st.success("Bandeja de entrada de mentorías activa.")
+    with t2:
+        st.markdown('<div class="card"><h3>Enviar Consulta al Mentor</h3>', unsafe_allow_html=True)
+        correo_val = st.text_input("Confirma tu correo para enviar")
+        consulta = st.text_area("Describe tu idea o problema de Misión 3")
+        if st.button("Enviar Consulta"):
+            if correo_val and consulta:
+                # Verificar si el estudiante existe para traer su campus automáticamente
+                student_ref = db.collection("students").document(correo_val).get()
+                if student_ref.exists:
+                    campus_auto = student_ref.to_dict().get('campus', 'No especificado')
+                    db.collection("queries").add({
+                        "student_email": correo_val,
+                        "campus": campus_auto,
+                        "text": consulta,
+                        "status": "pending",
+                        "createdAt": datetime.now()
+                    })
+                    st.success("¡Consulta enviada! Los mentores te responderán pronto.")
+                else:
+                    st.error("Correo no encontrado. Regístrate primero en la pestaña anterior.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-elif current_menu == "Administrador":
-    st.markdown('<h1 class="main-title">Dashboard Admin</h1>', unsafe_allow_html=True)
-    
-    if st.button("⬅️ Volver a IdeaLabM3", key="ret_admin"):
-        go_home()
-        
-    # Lógica de gráficos de Plotly...
+    with t3:
+        st.markdown('<h3>Tus Consultas</h3>', unsafe_allow_html=True)
+        ver_correo = st.text_input("Ingresa tu correo para ver respuestas", key="ver_res")
+        if ver_correo:
+            consultas = db.collection("queries").where("student_email", "==", ver_correo).get()
+            if consultas:
+                for doc in consultas:
+                    q = doc.to_dict()
+                    with st.expander(f"Consulta del {q['createdAt'].strftime('%d/%m/%Y')}"):
+                        st.write(f"**Tu pregunta:** {q['text']}")
+                        if 'mentor_reply' in q:
+                            st.info(f"**Respuesta del Mentor:** {q['mentor_reply']}")
+                        else:
+                            st.warning("Estado: Pendiente de respuesta.")
+            else:
+                st.info("No tienes consultas registradas con este correo.")
+
+# El resto de secciones (Mentores/Admin) siguen la misma lógica estandarizada.
+elif menu == "Mentores":
+    st.markdown('<h1 class="main-title">Mentores</h1>', unsafe_allow_html=True)
+    st.info("Inicia sesión para revisar las consultas pendientes de tus estudiantes.")
+    # (Aquí va tu lógica de login de mentores que ya configuramos)
+
+elif menu == "Administrador":
+    st.markdown('<h1 class="main-title">Dashboard</h1>', unsafe_allow_html=True)
+    # (Aquí va tu lógica de gráficos de Plotly)
 
 st.sidebar.markdown("---")
-st.sidebar.caption("IdealabM3 v5.8 | @UCV 2026")
+st.sidebar.caption("IdealabM3 v5.9 | @UCV 2026")
