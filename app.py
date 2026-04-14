@@ -60,7 +60,6 @@ def get_db():
 
 db = get_db()
 
-# Listas Institucionales
 CAMPUS_UCV = ["Lima Norte", "Ate", "San Juan de Lurigancho", "Callao", "Chimbote", "Huaraz", "Trujillo", "Chepén", "Chiclayo", "Piura", "Tarapoto", "Moyobamba"]
 CARRERAS_UCV = ["Administración", "Contabilidad", "Derecho", "Psicología", "Ingeniería de Sistemas", "Ingeniería Industrial", "Arquitectura", "Medicina Humana", "Ciencias de la Comunicación", "Educación"]
 
@@ -71,12 +70,10 @@ def enviar_notificacion(destinatario, respuesta, duda_original):
     try:
         remitente = st.secrets["EMAIL_USER"]
         password = st.secrets["EMAIL_PASS"]
-        
         msg = MIMEMultipart()
         msg['From'] = remitente
         msg['To'] = destinatario
         msg['Subject'] = "💡 IdeaLabM3: Tu mentor ha respondido"
-
         cuerpo = f"""
         <html>
             <body style="font-family: Arial, sans-serif; color: #333;">
@@ -86,26 +83,23 @@ def enviar_notificacion(destinatario, respuesta, duda_original):
                     <div style="background: #ffffff; padding: 20px; border-radius: 10px; border-left: 5px solid #00f2fe; margin: 20px 0;">
                         <p><b>Respuesta del Mentor:</b><br>{respuesta}</p>
                     </div>
-                    <p>Sigue trabajando en tu proyecto de Misión 3. ¡Muchos éxitos!</p>
+                    <p>Sigue trabajando en tu proyecto. ¡Muchos éxitos!</p>
                     <p>Saludos,<br><b>Equipo de Emprendimiento UCV</b></p>
                 </div>
             </body>
         </html>
         """
         msg.attach(MIMEText(cuerpo, 'html'))
-        
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(remitente, password)
         server.sendmail(remitente, destinatario, msg.as_string())
         server.quit()
         return True
-    except Exception as e:
-        st.error(f"Error al enviar el correo: {e}")
-        return False
+    except: return False
 
 # ==========================================
-# 4. LÓGICA DE NAVEGACIÓN Y SESIÓN
+# 4. NAVEGACIÓN
 # ==========================================
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
@@ -131,22 +125,20 @@ with st.sidebar:
         menu_icon="cast", default_index=0
     )
     if st.session_state['authenticated']:
-        st.success(f"Mentor: {st.session_state['mentor_name']}")
+        st.success(f"Conectado: {st.session_state['mentor_name']}")
         if st.button("Cerrar Sesión"):
             st.session_state['authenticated'] = False
             st.rerun()
 
 # ==========================================
-# 5. CONTENIDO DE LAS SECCIONES
+# 5. CONTENIDO
 # ==========================================
 
-# --- INICIO ---
 if menu == "IdeaLabM3":
     st.markdown('<h1 class="main-title">IdeaLabM3</h1>', unsafe_allow_html=True)
     st.markdown('<p class="subtitle">Donde las ideas convergen</p>', unsafe_allow_html=True)
     st.image("https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=2070&auto=format&fit=crop")
 
-# --- ESTUDIANTES ---
 elif menu == "Estudiantes":
     st.markdown('<h1 class="main-title">Estudiantes</h1>', unsafe_allow_html=True)
     t1, t2, t3 = st.tabs(["📝 Registro", "🚀 Nueva Consulta", "📩 Mis Respuestas"])
@@ -164,73 +156,84 @@ elif menu == "Estudiantes":
             if st.form_submit_button("Finalizar Registro"):
                 if n and e and p:
                     db.collection("students").document(e).set({"name":n, "email":e, "password":p, "campus":s, "career":ca, "createdAt":datetime.now()})
-                    st.success("¡Perfil creado! Ya puedes enviar consultas.")
-                else: st.warning("Completa todos los datos.")
+                    st.success("¡Perfil creado!")
+                else: st.warning("Completa los datos.")
 
     with t2:
         with st.form("con_form", clear_on_submit=True):
             mail = st.text_input("Confirma tu correo")
-            duda = st.text_area("Escribe tu consulta aquí")
-            if st.form_submit_button("Enviar Consulta 📩"):
+            duda = st.text_area("Escribe tu consulta")
+            if st.form_submit_button("Enviar 📩"):
                 user_doc = db.collection("students").document(mail).get()
                 if user_doc.exists:
-                    campus_u = user_doc.to_dict().get('campus', 'Lima')
-                    db.collection("queries").add({"student_email": mail, "campus": campus_u, "text": duda, "status": "pending", "createdAt": datetime.now()})
+                    udata = user_doc.to_dict()
+                    db.collection("queries").add({
+                        "student_email": mail, 
+                        "campus": udata.get('campus', 'Lima'), 
+                        "career": udata.get('career', 'Sistemas'),
+                        "text": duda, "status": "pending", "createdAt": datetime.now()
+                    })
                     st.success("¡Consulta enviada!")
-                else: st.error("Debes registrarte primero.")
+                else: st.error("Regístrate primero.")
 
     with t3:
-        ver_m = st.text_input("Ingresa tu correo para ver respuestas")
+        ver_m = st.text_input("Correo para ver respuestas")
         if ver_m:
             consultas = db.collection("queries").where("student_email", "==", ver_m).get()
             for doc in consultas:
                 q = doc.to_dict()
                 with st.expander(f"Consulta: {q['text'][:40]}..."):
-                    st.write(f"**Tu pregunta:** {q['text']}")
-                    if 'mentor_reply' in q: st.info(f"**Respuesta:** {q['mentor_reply']}")
-                    else: st.warning("Pendiente de respuesta.")
+                    st.write(f"**Pregunta:** {q['text']}")
+                    if 'mentor_reply' in q: st.info(f"**Mentor:** {q['mentor_reply']}")
 
-# --- MENTORES ---
 elif menu == "Mentores":
-    st.markdown('<h1 class="main-title">Mentores</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-title">Panel Mentores</h1>', unsafe_allow_html=True)
     if not st.session_state['authenticated']:
-        with st.form("login_m"):
-            u = st.text_input("Correo")
-            p = st.text_input("Clave", type="password")
-            if st.form_submit_button("Ingresar"):
+        with st.form("login"):
+            u, p = st.text_input("Correo"), st.text_input("Clave", type="password")
+            if st.form_submit_button("Entrar"):
                 if check_login(u, p): st.rerun()
-                else: st.error("Credenciales inválidas.")
+                else: st.error("Error.")
     else:
         docs = db.collection("queries").where("status", "==", "pending").get()
-        if not docs: st.info("No hay consultas pendientes.")
+        if not docs: st.info("Sin pendientes.")
         for doc in docs:
             q = doc.to_dict()
             with st.container():
                 st.markdown(f'<div class="card"><b>De: {q.get("student_email")}</b><br>{q["text"]}</div>', unsafe_allow_html=True)
-                ans = st.text_area("Tu respuesta:", key=doc.id)
+                ans = st.text_area("Respuesta:", key=doc.id)
                 if st.button("Enviar y Notificar 📩", key=f"btn_{doc.id}"):
-                    if ans:
-                        db.collection("queries").document(doc.id).update({"status": "responded", "mentor_reply": ans, "repliedAt": datetime.now()})
-                        enviar_notificacion(q.get("student_email"), ans, q.get("text"))
-                        st.success("Respondido con éxito.")
-                        st.rerun()
+                    db.collection("queries").document(doc.id).update({"status": "responded", "mentor_reply": ans, "repliedAt": datetime.now()})
+                    enviar_notificacion(q.get("student_email"), ans, q.get("text"))
+                    st.rerun()
 
-# --- ADMINISTRADOR ---
 elif menu == "Administrador":
     if not st.session_state['authenticated']:
-        st.warning("Debes ser mentor para ver estas métricas.")
+        st.warning("Acceso restringido a Mentores.")
     else:
-        st.markdown('<h1 class="main-title">Dashboard Admin</h1>', unsafe_allow_html=True)
-        all_q = db.collection("queries").get()
-        if all_q:
-            df = pd.DataFrame([d.to_dict() for d in all_q])
-            col1, col2 = st.columns(2)
-            with col1:
-                fig = px.bar(df, x="campus", title="Consultas por Campus", template="plotly_dark", color="campus")
-                st.plotly_chart(fig, use_container_width=True)
-            with col2:
-                fig2 = px.pie(df, names="status", title="Estado de Consultas", hole=0.4, template="plotly_dark")
+        st.markdown('<h1 class="main-title">Dashboard Administrativo</h1>', unsafe_allow_html=True)
+        q_docs = db.collection("queries").get()
+        if q_docs:
+            df = pd.DataFrame([d.to_dict() for d in q_docs])
+            
+            # Métricas
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Consultas Totales", len(df))
+            m2.metric("Pendientes", len(df[df['status']=='pending']))
+            m3.metric("Atendidos", len(df[df['status']=='responded']))
+            
+            st.markdown("---")
+            col_a, col_b = st.columns(2)
+            with col_a:
+                fig1 = px.bar(df, x="campus", title="Distribución por Campus", color="campus", template="plotly_dark")
+                st.plotly_chart(fig1, use_container_width=True)
+            with col_b:
+                fig2 = px.bar(df, x="career", title="Consultas por Carrera Profesional", color="career", template="plotly_dark")
                 st.plotly_chart(fig2, use_container_width=True)
+            
+            st.markdown("---")
+            fig3 = px.pie(df, names="status", title="Estado General de Atención", hole=0.5, template="plotly_dark")
+            st.plotly_chart(fig3, use_container_width=True)
 
 st.sidebar.markdown("---")
-st.sidebar.caption("IdealabM3 v6.5 | @UCV 2026")
+st.sidebar.caption("IdealabM3 v6.6 | @UCV 2026")
