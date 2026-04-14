@@ -33,7 +33,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. CONEXIÓN FIREBASE
+# 2. CONEXIÓN FIREBASE Y LISTAS
 # ==========================================
 @st.cache_resource
 def get_db():
@@ -54,37 +54,21 @@ db = get_db()
 
 CAMPUS_UCV = ["Lima Norte", "Ate", "San Juan de Lurigancho", "Callao", "Chimbote", "Huaraz", "Trujillo", "Chepén", "Chiclayo", "Piura", "Tarapoto", "Moyobamba"]
 CARRERAS_UCV = ["Administración", "Contabilidad", "Derecho", "Psicología", "Ingeniería de Sistemas", "Ingeniería Industrial", "Arquitectura", "Medicina Humana", "Ciencias de la Comunicación", "Educación"]
+CICLOS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"]
+
+# --- Función para validar correos UCV ---
+def es_correo_ucv(email):
+    dominios_validos = ["@ucv.edu.pe", "@ucvvirtual.edu.pe"]
+    return any(email.lower().endswith(dom) for dom in dominios_validos)
 
 # ==========================================
-# 3. LÓGICA DE SESIÓN (ESTUDIANTES Y MENTORES)
+# 3. LÓGICA DE SESIÓN
 # ==========================================
-if 'auth_user' not in st.session_state:
-    st.session_state['auth_user'] = None  # Para Estudiantes
-if 'auth_mentor' not in st.session_state:
-    st.session_state['auth_mentor'] = False # Para Mentores
+if 'auth_user' not in st.session_state: st.session_state['auth_user'] = None
+if 'auth_mentor' not in st.session_state: st.session_state['auth_mentor'] = False
 
 # ==========================================
-# 4. FUNCIÓN DE EMAIL
-# ==========================================
-def enviar_notificacion(destinatario, respuesta, duda_original):
-    try:
-        remitente = st.secrets["EMAIL_USER"]
-        password = st.secrets["EMAIL_PASS"]
-        msg = MIMEMultipart()
-        msg['From'] = remitente
-        msg['To'] = destinatario
-        msg['Subject'] = "💡 IdeaLabM3: Respuesta a tu consulta"
-        cuerpo = f"<html><body><div style='padding:20px;background:#f0f2f6;'><h3>Hola!</h3><p>Tu consulta: {duda_original}</p><p><b>Respuesta:</b> {respuesta}</p></div></body></html>"
-        msg.attach(MIMEText(cuerpo, 'html'))
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(remitente, password)
-        server.sendmail(remitente, destinatario, msg.as_string())
-        server.quit()
-    except: pass
-
-# ==========================================
-# 5. NAVEGACIÓN
+# 4. NAVEGACIÓN
 # ==========================================
 with st.sidebar:
     st.image("https://www.ucv.edu.pe/wp-content/uploads/2020/01/logo-ucv.png", width=180)
@@ -92,71 +76,76 @@ with st.sidebar:
                        icons=['house', 'mortarboard', 'person-check', 'graph-up'], default_index=0)
     
     if st.session_state['auth_user'] or st.session_state['auth_mentor']:
-        if st.button("Cerrar Sesión Global"):
+        if st.button("Cerrar Sesión"):
             st.session_state['auth_user'] = None
             st.session_state['auth_mentor'] = False
             st.rerun()
 
 # ==========================================
-# 6. SECCIONES
+# 5. SECCIONES
 # ==========================================
 
 if menu == "Inicio":
     st.markdown('<h1 class="main-title">IdeaLabM3</h1>', unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center;'>Donde las ideas convergen</p>", unsafe_allow_html=True)
     st.image("https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=2070&auto=format&fit=crop")
 
 elif menu == "Estudiantes":
     st.markdown('<h1 class="main-title">Panel Estudiantil</h1>', unsafe_allow_html=True)
     
     if st.session_state['auth_user'] is None:
-        tab_log, tab_reg = st.tabs(["🔑 Ingresar", "📝 Registrarse"])
+        t_log, t_reg = st.tabs(["🔑 Ingresar", "📝 Registrarse"])
         
-        with tab_log:
-            with st.form("login_estudiante"):
-                log_email = st.text_input("Correo Institucional")
-                log_pass = st.text_input("Contraseña", type="password")
+        with t_log:
+            with st.form("login_est"):
+                mail = st.text_input("Correo Institucional")
+                pw = st.text_input("Contraseña", type="password")
                 if st.form_submit_button("Entrar"):
-                    u_ref = db.collection("students").document(log_email).get()
-                    if u_ref.exists and str(u_ref.to_dict().get('password')) == log_pass:
+                    u_ref = db.collection("students").document(mail).get()
+                    if u_ref.exists and str(u_ref.to_dict().get('password')) == pw:
                         st.session_state['auth_user'] = u_ref.to_dict()
                         st.rerun()
-                    else: st.error("Correo o clave incorrectos")
-        
-        with tab_reg:
-            with st.form("reg_estudiante"):
-                n, e, p = st.text_input("Nombre Completo"), st.text_input("Correo"), st.text_input("Crea Clave", type="password")
-                s, ca = st.selectbox("Sede", CAMPUS_UCV), st.selectbox("Carrera", CARRERAS_UCV)
+                    else: st.error("Credenciales incorrectas")
+
+        with t_reg:
+            with st.form("reg_est"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    nom = st.text_input("Nombre Completo")
+                    cor = st.text_input("Correo Institucional (@ucv.edu.pe o @ucvvirtual.edu.pe)")
+                    cla = st.text_input("Crea una Clave", type="password")
+                with col2:
+                    sed = st.selectbox("Sede", CAMPUS_UCV)
+                    car = st.selectbox("Carrera Profesional", CARRERAS_UCV)
+                    cic = st.selectbox("Ciclo Actual", CICLOS) # NUEVO CAMPO
+                
                 if st.form_submit_button("Registrarme"):
-                    db.collection("students").document(e).set({"name":n, "email":e, "password":p, "campus":s, "career":ca})
-                    st.success("¡Registrado! Ahora ingresa por la pestaña de 'Ingresar'.")
+                    if not es_correo_ucv(cor):
+                        st.error("❌ Solo se permiten correos @ucv.edu.pe o @ucvvirtual.edu.pe")
+                    elif nom and cor and cla:
+                        db.collection("students").document(cor).set({
+                            "name": nom, "email": cor, "password": cla, 
+                            "campus": sed, "career": car, "cycle": cic
+                        })
+                        st.success("✅ Registro exitoso. Ahora puedes Ingresar.")
+                    else: st.warning("Completa todos los campos.")
     else:
-        # USUARIO YA LOGUEADO
-        st.info(f"Bienvenido/a, {st.session_state['auth_user']['name']}")
+        st.info(f"Sesión: {st.session_state['auth_user']['name']} ({st.session_state['auth_user']['cycle']} Ciclo)")
         t_con, t_res = st.tabs(["🚀 Nueva Consulta", "📩 Mis Respuestas"])
-        
         with t_con:
-            with st.form("consulta_f", clear_on_submit=True):
-                duda = st.text_area("¿En qué podemos ayudarte hoy?")
-                if st.form_submit_button("Enviar a Mentores"):
+            with st.form("c_f", clear_on_submit=True):
+                txt = st.text_area("¿Cuál es tu consulta?")
+                if st.form_submit_button("Enviar"):
                     db.collection("queries").add({
                         "student_email": st.session_state['auth_user']['email'],
                         "campus": st.session_state['auth_user']['campus'],
                         "career": st.session_state['auth_user']['career'],
-                        "text": duda, "status": "pending", "createdAt": datetime.now()
+                        "cycle": st.session_state['auth_user']['cycle'], # GUARDAMOS EL CICLO
+                        "text": txt, "status": "pending", "createdAt": datetime.now()
                     })
-                    st.success("Consulta enviada correctamente.")
-        
-        with t_res:
-            qs = db.collection("queries").where(filter=FieldFilter("student_email", "==", st.session_state['auth_user']['email'])).get()
-            for doc in qs:
-                q = doc.to_dict()
-                with st.expander(f"Consulta: {q['text'][:30]}..."):
-                    st.write(q['text'])
-                    if 'mentor_reply' in q: st.info(f"Respuesta del Mentor: {q['mentor_reply']}")
-                    else: st.warning("Pendiente de revisión.")
+                    st.success("Consulta enviada.")
 
 elif menu == "Mentores":
+    # (Lógica de mentores igual a la anterior...)
     st.markdown('<h1 class="main-title">Panel Mentores</h1>', unsafe_allow_html=True)
     if not st.session_state['auth_mentor']:
         with st.form("login_m"):
@@ -173,37 +162,35 @@ elif menu == "Mentores":
         for doc in pending:
             q = doc.to_dict()
             with st.container():
-                st.markdown(f'<div class="card"><b>De: {q.get("student_email")}</b><br>{q.get("text")}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="card"><b>De: {q.get("student_email")} ({q.get("cycle")} Ciclo)</b><br>{q.get("text")}</div>', unsafe_allow_html=True)
                 ans = st.text_area("Respuesta:", key=doc.id)
                 if st.button("Enviar Respuesta 📩", key=f"b_{doc.id}"):
                     db.collection("queries").document(doc.id).update({"status": "responded", "mentor_reply": ans})
-                    enviar_notificacion(q.get("student_email"), ans, q.get("text"))
                     st.rerun()
 
 elif menu == "Administrador":
     if not st.session_state['auth_mentor']:
-        st.warning("🔒 Acceso exclusivo para Mentores.")
+        st.warning("Acceso exclusivo para mentores.")
     else:
-        st.markdown('<h1 class="main-title">Dashboard Administrativo</h1>', unsafe_allow_html=True)
-        data = db.collection("queries").get()
-        if data:
-            df = pd.DataFrame([d.to_dict() for d in data])
+        st.markdown('<h1 class="main-title">Dashboard Admin</h1>', unsafe_allow_html=True)
+        docs = db.collection("queries").get()
+        if docs:
+            df = pd.DataFrame([d.to_dict() for d in docs])
             
-            # --- CORRECCIÓN DE MÉTRICAS ---
-            if 'status' not in df.columns: df['status'] = 'pending'
+            # Métricas
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Total", len(df))
+            c2.metric("Atendidos", len(df[df['status'] == 'responded']))
+            c3.metric("Pendientes", len(df[df['status'] == 'pending']))
             
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Consultas Totales", len(df))
-            col2.metric("Atendidos (Responded)", len(df[df['status'] == 'responded']))
-            col3.metric("Pendientes (Pending)", len(df[df['status'] == 'pending']))
-            
+            # Gráficos
             st.markdown("---")
-            c1, c2 = st.columns(2)
-            with c1:
-                st.plotly_chart(px.bar(df, x="campus", title="Sedes", color="campus", template="plotly_dark"), width="stretch")
-            with c2:
-                if 'career' in df.columns:
-                    df['career'] = df['career'].fillna("Sin datos")
-                    st.plotly_chart(px.bar(df, x="career", title="Carreras", color="career", template="plotly_dark"), width="stretch")
+            g1, g2 = st.columns(2)
+            with g1:
+                st.plotly_chart(px.bar(df, x="campus", title="Sedes", template="plotly_dark", color="campus"), width="stretch")
+            with g2:
+                # GRÁFICO DE CICLOS
+                if 'cycle' in df.columns:
+                    st.plotly_chart(px.bar(df, x="cycle", title="Consultas por Ciclo", template="plotly_dark", color="cycle", category_orders={"cycle": CICLOS}), width="stretch")
 
-st.sidebar.caption("IdeaLabM3 v7.5 | UCV 2026")
+st.sidebar.caption("IdeaLabM3 v8.0 | UCV 2026")
