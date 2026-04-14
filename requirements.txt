@@ -2,5 +2,4 @@ streamlit
 firebase-admin
 pandas
 plotly
-python-dotenv
 streamlit-option-menu
