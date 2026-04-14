@@ -56,7 +56,6 @@ CAMPUS_UCV = ["Lima Norte", "Ate", "San Juan de Lurigancho", "Callao", "Chimbote
 CARRERAS_UCV = ["Administración", "Contabilidad", "Derecho", "Psicología", "Ingeniería de Sistemas", "Ingeniería Industrial", "Arquitectura", "Medicina Humana", "Ciencias de la Comunicación", "Educación"]
 CICLOS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"]
 
-# --- Función para validar correos UCV ---
 def es_correo_ucv(email):
     dominios_validos = ["@ucv.edu.pe", "@ucvvirtual.edu.pe"]
     return any(email.lower().endswith(dom) for dom in dominios_validos)
@@ -111,25 +110,24 @@ elif menu == "Estudiantes":
                 col1, col2 = st.columns(2)
                 with col1:
                     nom = st.text_input("Nombre Completo")
-                    cor = st.text_input("Correo Institucional (@ucv.edu.pe o @ucvvirtual.edu.pe)")
+                    cor = st.text_input("Correo Institucional")
                     cla = st.text_input("Crea una Clave", type="password")
                 with col2:
                     sed = st.selectbox("Sede", CAMPUS_UCV)
                     car = st.selectbox("Carrera Profesional", CARRERAS_UCV)
-                    cic = st.selectbox("Ciclo Actual", CICLOS) # NUEVO CAMPO
+                    cic = st.selectbox("Ciclo Actual", CICLOS)
                 
                 if st.form_submit_button("Registrarme"):
                     if not es_correo_ucv(cor):
-                        st.error("❌ Solo se permiten correos @ucv.edu.pe o @ucvvirtual.edu.pe")
+                        st.error("❌ Solo correos @ucv.edu.pe o @ucvvirtual.edu.pe")
                     elif nom and cor and cla:
                         db.collection("students").document(cor).set({
                             "name": nom, "email": cor, "password": cla, 
                             "campus": sed, "career": car, "cycle": cic
                         })
                         st.success("✅ Registro exitoso. Ahora puedes Ingresar.")
-                    else: st.warning("Completa todos los campos.")
     else:
-        st.info(f"Sesión: {st.session_state['auth_user']['name']} ({st.session_state['auth_user']['cycle']} Ciclo)")
+        st.info(f"Sesión: {st.session_state['auth_user']['name']} | {st.session_state['auth_user']['career']}")
         t_con, t_res = st.tabs(["🚀 Nueva Consulta", "📩 Mis Respuestas"])
         with t_con:
             with st.form("c_f", clear_on_submit=True):
@@ -138,14 +136,21 @@ elif menu == "Estudiantes":
                     db.collection("queries").add({
                         "student_email": st.session_state['auth_user']['email'],
                         "campus": st.session_state['auth_user']['campus'],
-                        "career": st.session_state['auth_user']['career'],
-                        "cycle": st.session_state['auth_user']['cycle'], # GUARDAMOS EL CICLO
+                        "career": st.session_state['auth_user']['career'], # CRITICAL: Se guarda aquí
+                        "cycle": st.session_state['auth_user']['cycle'],
                         "text": txt, "status": "pending", "createdAt": datetime.now()
                     })
                     st.success("Consulta enviada.")
+        
+        with t_res:
+            qs = db.collection("queries").where(filter=FieldFilter("student_email", "==", st.session_state['auth_user']['email'])).get()
+            for doc in qs:
+                q = doc.to_dict()
+                with st.expander(f"Consulta: {q['text'][:30]}..."):
+                    st.write(q['text'])
+                    if 'mentor_reply' in q: st.info(f"Respuesta: {q['mentor_reply']}")
 
 elif menu == "Mentores":
-    # (Lógica de mentores igual a la anterior...)
     st.markdown('<h1 class="main-title">Panel Mentores</h1>', unsafe_allow_html=True)
     if not st.session_state['auth_mentor']:
         with st.form("login_m"):
@@ -162,7 +167,7 @@ elif menu == "Mentores":
         for doc in pending:
             q = doc.to_dict()
             with st.container():
-                st.markdown(f'<div class="card"><b>De: {q.get("student_email")} ({q.get("cycle")} Ciclo)</b><br>{q.get("text")}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="card"><b>De: {q.get("student_email")} ({q.get("career")})</b><br>{q.get("text")}</div>', unsafe_allow_html=True)
                 ans = st.text_area("Respuesta:", key=doc.id)
                 if st.button("Enviar Respuesta 📩", key=f"b_{doc.id}"):
                     db.collection("queries").document(doc.id).update({"status": "responded", "mentor_reply": ans})
@@ -177,20 +182,41 @@ elif menu == "Administrador":
         if docs:
             df = pd.DataFrame([d.to_dict() for d in docs])
             
+            # --- LIMPIEZA Y VALIDACIÓN DE DATOS ---
+            if 'career' not in df.columns:
+                df['career'] = "No especificada"
+            else:
+                df['career'] = df['career'].fillna("No especificada")
+            
+            if 'campus' not in df.columns:
+                df['campus'] = "No especificado"
+            else:
+                df['campus'] = df['campus'].fillna("No especificado")
+
             # Métricas
             c1, c2, c3 = st.columns(3)
-            c1.metric("Total", len(df))
+            c1.metric("Total Consultas", len(df))
             c2.metric("Atendidos", len(df[df['status'] == 'responded']))
             c3.metric("Pendientes", len(df[df['status'] == 'pending']))
             
-            # Gráficos
             st.markdown("---")
             g1, g2 = st.columns(2)
             with g1:
-                st.plotly_chart(px.bar(df, x="campus", title="Sedes", template="plotly_dark", color="campus"), width="stretch")
+                # Gráfico de Sedes
+                fig_campus = px.bar(df, x="campus", title="Consultas por Sede", 
+                                   template="plotly_dark", color="campus", width=None)
+                st.plotly_chart(fig_campus, width="stretch")
             with g2:
-                # GRÁFICO DE CICLOS
-                if 'cycle' in df.columns:
-                    st.plotly_chart(px.bar(df, x="cycle", title="Consultas por Ciclo", template="plotly_dark", color="cycle", category_orders={"cycle": CICLOS}), width="stretch")
+                # Gráfico de Carreras (CORREGIDO)
+                fig_career = px.bar(df, x="career", title="Consultas por Carrera", 
+                                   template="plotly_dark", color="career", width=None)
+                st.plotly_chart(fig_career, width="stretch")
+            
+            st.markdown("---")
+            if 'cycle' in df.columns:
+                fig_cycle = px.bar(df, x="cycle", title="Consultas por Ciclo", 
+                                  template="plotly_dark", color="cycle", 
+                                  category_orders={"cycle": CICLOS})
+                st.plotly_chart(fig_cycle, width="stretch")
 
-st.sidebar.caption("IdeaLabM3 v8.0 | UCV 2026")
+st.sidebar.caption("IdeaLabM3 v8.1 | UCV 2026")
